@@ -5,16 +5,16 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, \
     PatternFill, Border, Side, Color
 
-import tkinter as tk
-from tkinter import ttk
-from tkinter import filedialog
+# import tkinter as tk
+# from tkinter import ttk
+# from tkinter import filedialog
 
 import os
 import logging
 import datetime
 import argparse
 import subprocess
-import shelve
+# import shelve
 
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - %(message)s')
 # logging.disable()
@@ -184,6 +184,13 @@ def monthly_rapport(ws):
               'decembre']
     headers1 = ['Date', 'Temoin', 'Motif', 'Autorisation', 'Client', 'Qte']
     headers2 = ['Date', 'Temoin', 'Autorisation', 'Qte', 'km A', 'km B', 'Diff km', 'Conso. moyenne']
+    data = {'a': {}, 'b': {}}
+    big_cons = {}
+    inp1 = ['date', 'name', 'motive', 'authorization', 'client', 'in', 'out']
+    inp2 = ['date', 'name', 'engin', 'auth', 'out', 'kmA', 'kmB', 'diff', 'cons']
+    alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G',
+                'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q',
+                'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
     sheets = {}
     prev_solde = {}
     sub_total = {}
@@ -201,7 +208,8 @@ def monthly_rapport(ws):
 
     for key in sheets:
         ws_active = wb2[sheets[key]]
-        ws_active['A1'] = 'Consommations'
+        a = ws_active['A1']
+        a.value = 'Consommations'
 
         j = 0
         for col in ws_active.iter_cols(max_col=len(headers1)):
@@ -212,34 +220,24 @@ def monthly_rapport(ws):
                 sub_total[key] = ws_active[f'{col_letter}3']
             j += 1
 
-    # Get datas as a dict
-    data = {'a': {}, 'b': {}}
-    big_cons = {}
-    inp1 = ['date', 'name', 'motive', 'authorization', 'client', 'in', 'out']
-    inp2 = ['date', 'name', 'engin', 'auth', 'out', 'kmA', 'kmB', 'diff', 'cons']
-    alphabet = ['A', 'B', 'C', 'D', 'E', 'F', 'G',
-                'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q',
-                'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-
     def write_cons_data(data_obj):
         sum_min_row = 0
-        writed = {}
-        calc_cells = {}
-        first_writed = {}
+        all_data = {}
         for engin in data_obj:
             for date in data_obj[engin]:
                 try:
                     worksheet = wb2[sheets[date.month]]
-                    writed.setdefault(date.month, set())
-                    first_writed.setdefault(date.month, 0)
-                    calc_cells.setdefault(date.month, dict())
-                    calc_cells[date.month].setdefault(engin, set())
+                    all_data.setdefault(date.month, dict())
+                    all_data[date.month].setdefault('engin', set())
+                    all_data[date.month].setdefault('first_row', 0)
+                    all_data[date.month].setdefault('engin_cons', dict())
+                    all_data[date.month]['engin_cons'].setdefault(engin, set())
                     row_num = worksheet.max_row + 2
-                    if engin not in writed[date.month]:
+                    if engin not in all_data[date.month].get('engin', set()):
                         worksheet.insert_rows(idx=row_num)
                         worksheet[f'A{row_num}'].value = engin.upper()
-                        if len(writed[date.month]) == 0:
-                            first_writed[date.month] = row_num
+                        if len(all_data[date.month].get('engin', set())) == 0:
+                            all_data[date.month]['first_row'] = row_num
                         for i in range(len(headers2)):
                             letter = alphabet[i]
                             worksheet[f'{letter}{row_num + 1}'].value = headers2[i]
@@ -248,9 +246,9 @@ def monthly_rapport(ws):
                             if i >= 3:
                                 worksheet[f'{letter}{row_num + 2}'].value = 0
                             if i == 3:
-                                calc_cells[date.month][engin].add(worksheet[f'{letter}{row_num + 2}'])
+                                all_data[date.month]['engin_cons'][engin].add(worksheet[f'{letter}{row_num + 2}'])
                         sum_min_row = worksheet.max_row
-                        writed[date.month].add(engin)
+                        all_data[date.month]['engin'].add(engin)
 
                     for name in data_obj[engin][date]:
                         related_data = [date, name]
@@ -268,56 +266,62 @@ def monthly_rapport(ws):
                             worksheet[f'{letter}{row_num_wr}'].value = related_data[i]
                         sum_max_row = worksheet.max_row
 
-                        for sum_cell in calc_cells[date.month][engin]:
+                        for sum_cell in all_data[date.month]['engin_cons'][engin]:
                             cell_col = sum_cell.column_letter
                             sum_cell.value = f'=SUM({cell_col}{sum_min_row}:{cell_col}{sum_max_row - 1})'
                 except AttributeError:
                     pass
-        for mon in calc_cells:
+        for mon in all_data:
             worksheet = wb2[sheets[mon]]
             move_row = worksheet.max_row
-            diff = move_row - first_writed[mon]
-            worksheet.move_range(f'A{first_writed[mon]}:{alphabet[len(inp2)]}{move_row}', rows=-(first_writed[mon] - 1),
+            diff = move_row - all_data[mon].get('first_row', 0)
+            worksheet.move_range(f"A{all_data[mon]['first_row']}:{alphabet[len(inp2)]}{move_row}",
+                                 rows=-(all_data[mon].get('first_row', 1) - 1),
                                  cols=len(inp1), translate=True)
             total = '=SUM('
 
-            logging.debug(diff)
-            res_row = diff + 2
-            worksheet[f'H{res_row}'].value = 'Synthese'.upper()
-            worksheet[f'H{res_row + 1}'].value = 'Designation'
-            worksheet[f'I{res_row + 1}'].value = 'Quantity'
+            synth_row = diff + 2
 
-            for k, values_set in calc_cells[mon].items():
-                row1 = worksheet.max_row + 1
-                for total_cell in values_set:
-                    worksheet[f'H{row1}'].value = k
-                    worksheet[f'I{row1}'].value = total_cell.value
-                total += f'I{row1}:'
+            synth_headers = {'Synthese': None,
+                             'Designation': 'Quantite'}
+            tot = {}
+            i = 0
+            for equip, cons in all_data[mon]['engin_cons'].items():
+                tot.setdefault(equip, list(cons)[0].value)
+                total += f'J{synth_row + i + 3}:'
+                i += 1
             total = total[:len(total)-1] + ')'
-            worksheet[f'H{worksheet.max_row+1}'].value = 'Autres'
-            worksheet[f'I{worksheet.max_row}'].value = sub_total[mon].value
-            worksheet[f'H{worksheet.max_row + 1}'].value = 'total'.upper()
-            cons_total_cell = worksheet[f'I{worksheet.max_row}']
-
-            cons_total_cell.value = f'{total} + {str(sub_total[mon].value)[1:]}' \
+            cons_total = f'{total} + {str(sub_total[mon].value)[1:]}' \
                 if sub_total[mon].value != 0 else f'{total}'
-            worksheet[f'H{worksheet.max_row + 1}'].value = 'Entrees'
-            worksheet[f'I{worksheet.max_row}'].value = supply[mon]
-            worksheet[f'H{worksheet.max_row + 1}'].value = 'Solde precedent'
-            worksheet[f'I{worksheet.max_row}'].value = prev_solde[mon]
-            worksheet[f'H{worksheet.max_row + 1}'].value = 'Solde'
             other_conso = sub_total[mon].value[1:] if sub_total[mon].value != 0 else '0'
-            worksheet[f'I{worksheet.max_row}'] = f'={supply[mon]}+{prev_solde[mon][1:]}-{total[1:]}-{other_conso}'\
-                if prev_solde[mon] is not None else f'={supply[mon]}-{total[1:]}-{other_conso}'
-            solde = worksheet[f'H{worksheet.max_row}']
+            synth_rest = {'Autres': sub_total[mon].value,
+                          'Total': cons_total,
+                          'Entrees': supply[mon],
+                          'Solde precedent': prev_solde[mon],
+                          'Solde': f'={supply[mon]}+{prev_solde[mon][1:]}-{total[1:]}-{other_conso}'
+                          if prev_solde[mon] is not None else f'={supply[mon]}-{total[1:]}-{other_conso}'
+                          }
 
-            solde_grid = f'{solde.column_letter}{solde.row}'
+            synthese = synth_headers | tot | synth_rest
+            logging.debug(prev_solde[mon])
+            i = 0
+            solde = None
+            for designation, synth_value in synthese.items():
+                designation_cell = worksheet[f'I{synth_row + 1 + i}']
+                value_cell = worksheet[f'J{synth_row + 1 + i}']
+                designation_cell.value = designation
+                value_cell.value = synth_value
+                if designation == 'Solde':
+                    solde = value_cell
+                i += 1
+
             try:
+                solde_grid = f'{solde.column_letter}{solde.row}'
                 prev_solde[mon + 1] = f'={sheets[mon]}!{solde_grid}'
             except KeyError:
                 pass
-            # Move cells
-
+            head1 = worksheet['A1']
+            worksheet.merge_cells(f'A1:{alphabet[len(inp1)]}1')
 
     for row in ws.iter_rows(min_row=4):
         for x in range(len(inp1)):
