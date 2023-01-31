@@ -235,12 +235,19 @@ def monthly_rapport(ws):
                     row_num = worksheet.max_row + 2
                     if engin not in all_data[date.month].get('engin', set()):
                         worksheet.insert_rows(idx=row_num)
-                        worksheet[f'A{row_num}'].value = engin.upper()
+                        title = worksheet[f'A{row_num}']
+                        title.value = engin.upper()
+                        title.font = Font(color='004C6ef5', size=18)
+                        title.fill = PatternFill(fill_type='solid', start_color='00DEE2E6')
+                        worksheet.merge_cells(f'A{row_num}:{alphabet[len(inp2)]}{row_num}')
                         if len(all_data[date.month].get('engin', set())) == 0:
                             all_data[date.month]['first_row'] = row_num
                         for i in range(len(headers2)):
                             letter = alphabet[i]
-                            worksheet[f'{letter}{row_num + 1}'].value = headers2[i]
+                            header = worksheet[f'{letter}{row_num + 1}']
+                            header.value = headers2[i]
+                            header.font = Font(size=12, bold=True, color='00343A40')
+                            header.fill = PatternFill(fill_type='solid', start_color='00BAC8FF')
                             if i == 2:
                                 worksheet[f'{letter}{row_num + 2}'].value = 'total'.upper()
                             if i >= 3:
@@ -320,8 +327,27 @@ def monthly_rapport(ws):
                 prev_solde[mon + 1] = f'={sheets[mon]}!{solde_grid}'
             except KeyError:
                 pass
+
+            for _row in worksheet.iter_rows():
+                for _cell in _row:
+                    # _cell.font = Font(name='Verdana', size=11, color=Color(indexed=63))
+                    _cell.alignment = Alignment(wrap_text=True, vertical='center', horizontal='center')
+
             head1 = worksheet['A1']
-            worksheet.merge_cells(f'A1:{alphabet[len(inp1)]}1')
+            head1.font = Font(color='003366FF', name='Verdana',
+                              size=18, bold=True)
+            head1.alignment = Alignment(horizontal='center', vertical='center')
+            head1.value = head1.value.upper()
+            head1.border = Border(top=Side(border_style='medium'),
+                                  right=Side(border_style='medium'),
+                                  bottom=Side(border_style='medium'),
+                                  left=Side(border_style='medium'))
+            worksheet.merge_cells(f'A1:{alphabet[len(inp1)-2]}1')
+            worksheet.row_dimensions[1].height = 28
+            worksheet.column_dimensions['G'].width = 3
+            logging.debug(worksheet.max_row)
+            for i in range(1, worksheet.max_row):
+                worksheet[f'G{i}'].fill = PatternFill(fill_type='solid', start_color=Color(indexed=44))
 
     for row in ws.iter_rows(min_row=4):
         for x in range(len(inp1)):
