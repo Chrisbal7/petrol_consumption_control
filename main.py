@@ -402,27 +402,60 @@ def monthly_rapport(ws):
         sheet = wb2[month]
         for col in sheet.iter_cols():
             try:
-                max_width = 0
                 col_letter = col[0].column_letter
+                add = 0
+                iteration = 0
                 for row_number in range(1, sheet.max_row):
                     value = sheet[f'{col_letter}{row_number}'].value
                     if value is None:
                         continue
-                    elif len(str(value)) > max_width:
-                        max_width = len(str(value))
-                sheet.column_dimensions[col_letter].width = max_width
+                    else:
+                        add += len(str(value))
+                        iteration += 1
+                average = add // iteration
+                sheet.column_dimensions[col_letter].width = average + 5
             except IndexError:
                 continue
 
             for r in sheet.iter_rows(min_row=3):
                 row_number = r[0].row
-                sheet.row_dimensions[row_number].height = 22
+                sheet.row_dimensions[row_number].height = 25
                 for cell in r:
+                    try:
+                        cell.value = cell.value.capitalize()
+                    except AttributeError:
+                        pass
+                    cell.font = Font(color='00333333', name='Verdana', size=11)
                     cell.alignment = Alignment(vertical='center',
-                                               shrink_to_fit=True)
+                                               wrap_text=True)
+                    cell.border = Border(left=Side(border_style='dotted'),
+                                         right=Side(border_style='dotted'),
+                                         bottom=Side(border_style='dotted'))
                     if cell is not r[2]:
                         cell.alignment = Alignment(horizontal='center')
+                    if cell is r[1] or cell is r[4]:
+                        try:
+                            cell.value = cell.value.upper()
+                        except AttributeError:
+                            pass
+            for i in range(len(headers1)):
+                cell = sheet[f'{alphabet[i]}2']
+                cell.value = cell.value.upper()
+                cell.font = Font(name='Verdana', bold=True, color='00111111', size=11)
+                cell.border = Border(top=Side(border_style='thin', color='00333333'),
+                                     right=Side(border_style='thin', color='00333333'),
+                                     bottom=Side(border_style='thin', color='00333333'),
+                                     left=Side(border_style='thin', color='00333333'))
+                cell.alignment = Alignment(horizontal='center', vertical='center',
+                                           wrap_text=True)
 
+                try:
+                    if cell.value == headers1[3]:
+                        sheet.column_dimensions[f'{alphabet[i]}'].width = len(cell.value)
+                except TypeError:
+                    pass
+
+            sheet.row_dimensions[2].height = 26
         # Format the xlsx for better ui
         # Move cells : Identify cells to be moved
         # Move cells with their formulae
