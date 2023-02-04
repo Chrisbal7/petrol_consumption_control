@@ -5,16 +5,16 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, \
     PatternFill, Border, Side, Color
 
-# import tkinter as tk
-# from tkinter import ttk
-# from tkinter import filedialog
+from tkinter import *
+from tkinter import ttk
+from tkinter import filedialog
 
 import os
 import logging
 import datetime
 import argparse
 import subprocess
-# import shelve
+import shelve
 
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - %(message)s')
 # logging.disable()
@@ -24,13 +24,16 @@ parser.add_argument('-p', '--product', default='GASOIL',
                     help='Indiquer le type du product')
 parser.add_argument('-a', '--adjust', default=0, help='Previous solde')
 args = vars(parser.parse_args())
+root = Tk()
+root.title('AutoXL')
+main_frame = ttk.Frame(root, padding='12 12 12 12')
+main_frame.grid(column=0, row=0, sticky='NSEW')
 
-filepath = '/home/chrisbal/Downloads/Carburant 2022.xlsx'
+filepath = filedialog.askopenfilename()
 
 # filepath = shelve
-# root = tk.Tk()
-# filepath = filedialog.askopenfilename()
-# root.mainloop()
+
+
 os.chdir(os.path.dirname(filepath))
 os.chdir(os.path.dirname(filepath))
 wb = load_workbook(filepath)
@@ -41,6 +44,11 @@ wb1 = Workbook()
 wb2 = Workbook()
 m = 1
 n = 3
+colors = ['00BAC8ff', '00ffffff']
+border_thin = Border(top=Side(border_style='thin', color='00333333'),
+                     left=Side(border_style='thin', color='00333333'),
+                     right=Side(border_style='thin', color='00333333'),
+                     bottom=Side(border_style='thin', color='00333333'),)
 
 
 def fiche_stock(ws):
@@ -63,10 +71,7 @@ def fiche_stock(ws):
         cell.alignment = Alignment(horizontal='center',
                                    vertical='center',
                                    shrink_to_fit=True)
-        cell.border = Border(top=Side(border_style='thin'),
-                             bottom=Side(border_style='thin'),
-                             right=Side(border_style='thin'),
-                             left=Side(border_style='thin'))
+        cell.border = border_thin
         dims = {}
         if cell.value and cell.value != 'A':
             dims.setdefault(cell.column_letter, len(str(cell.value)))
@@ -228,6 +233,7 @@ def monthly_rapport(ws):
                 try:
                     worksheet = wb2[sheets[date.month]]
                     all_data.setdefault(date.month, dict())
+                    all_data[date.month].setdefault('row_ref', list())
                     all_data[date.month].setdefault('engin', set())
                     all_data[date.month].setdefault('first_row', 0)
                     all_data[date.month].setdefault('engin_cons', dict())
@@ -236,24 +242,35 @@ def monthly_rapport(ws):
                     if engin not in all_data[date.month].get('engin', set()):
                         worksheet.insert_rows(idx=row_num)
                         title = worksheet[f'A{row_num}']
+                        all_data[date.month]['row_ref'].append(row_num)
                         title.value = engin.upper()
-                        title.font = Font(color='004C6ef5', size=18)
-                        title.fill = PatternFill(fill_type='solid', start_color='00DEE2E6')
-                        worksheet.merge_cells(f'A{row_num}:{alphabet[len(inp2)]}{row_num}')
+                        title.font = Font(color='003366FF', bold=True, size=18)
+                        title.border = Border(top=Side(border_style='medium', color='00333333'),
+                                              right=Side(border_style='medium', color='00333333'),
+                                              bottom=Side(border_style='medium', color='00333333'),
+                                              left=Side(border_style='medium', color='00333333'),)
+
                         if len(all_data[date.month].get('engin', set())) == 0:
                             all_data[date.month]['first_row'] = row_num
-                        for i in range(len(headers2)):
-                            letter = alphabet[i]
+                        for e in range(len(headers2)):
+                            letter = alphabet[e].upper()
                             header = worksheet[f'{letter}{row_num + 1}']
-                            header.value = headers2[i]
-                            header.font = Font(size=12, bold=True, color='00343A40')
-                            header.fill = PatternFill(fill_type='solid', start_color='00BAC8FF')
-                            if i == 2:
-                                worksheet[f'{letter}{row_num + 2}'].value = 'total'.upper()
-                            if i >= 3:
-                                worksheet[f'{letter}{row_num + 2}'].value = 0
-                            if i == 3:
-                                all_data[date.month]['engin_cons'][engin].add(worksheet[f'{letter}{row_num + 2}'])
+                            header.value = headers2[e]
+                            header.font = Font(name='Verdana', size=12, bold=True, color='00343A40')
+                            header.alignment = Alignment(horizontal='center', wrap_text=True, vertical='center')
+                            header.border = border_thin
+
+                            if e >= 2:
+                                total_cell = worksheet[f'{letter}{row_num + 2}']
+                                total_cell.font = Font()
+                                total_cell.font = Font(size=14, italic=True, bold=True, color='00333333')\
+                                    if e == 3 else Font(size=12, bold=True, color='00333333')
+                                total_cell.alignment = Alignment(horizontal='center', vertical='center',
+                                                                 shrink_to_fit=True)
+                                total_cell.border = border_thin
+                                total_cell.value = 'total'.upper() if e == 2 else 0
+                                if e == 3:
+                                    all_data[date.month]['engin_cons'][engin].add(total_cell)
                         sum_min_row = worksheet.max_row
                         all_data[date.month]['engin'].add(engin)
 
@@ -265,12 +282,18 @@ def monthly_rapport(ws):
                             related_data.append(None)
                         worksheet.insert_rows(idx=worksheet.max_row)
                         row_num_wr = worksheet.max_row - 1
-                        for i in range(len(headers2)):
-                            letter = alphabet[i]
-                            if i == 0:
-                                worksheet[f'{letter}{row_num_wr}'].value = related_data[i].strftime('%d/%m/%Y')
+                        for c in range(len(headers2)):
+                            letter = alphabet[c]
+                            cell_writed = worksheet[f'{letter}{row_num_wr}']
+                            cell_writed.font = Font(name='Verdana', color='00333333', size=11)
+                            cell_writed.border = Border(left=Side(border_style='dotted'),
+                                                        bottom=Side(border_style='dotted'),
+                                                        right=Side(border_style='dotted'),)
+                            cell_writed.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                            if c == 0:
+                                worksheet[f'{letter}{row_num_wr}'].value = related_data[c].strftime('%d/%m/%Y')
                                 continue
-                            worksheet[f'{letter}{row_num_wr}'].value = related_data[i]
+                            cell_writed.value = related_data[c]
                         sum_max_row = worksheet.max_row
 
                         for sum_cell in all_data[date.month]['engin_cons'][engin]:
@@ -278,25 +301,30 @@ def monthly_rapport(ws):
                             sum_cell.value = f'=SUM({cell_col}{sum_min_row}:{cell_col}{sum_max_row - 1})'
                 except AttributeError:
                     pass
+        logging.debug(all_data[1]['row_ref'])
         for mon in all_data:
             worksheet = wb2[sheets[mon]]
             move_row = worksheet.max_row
+            logging.debug(all_data[mon].get('first_row', None))
             diff = move_row - all_data[mon].get('first_row', 0)
             worksheet.move_range(f"A{all_data[mon]['first_row']}:{alphabet[len(inp2)]}{move_row}",
                                  rows=-(all_data[mon].get('first_row', 1) - 1),
                                  cols=len(inp1), translate=True)
+            for row_r in all_data[mon]['row_ref']:
+                row_ref = row_r - all_data[mon].get('first_row', 0) + 1
+                worksheet.merge_cells(f'{alphabet[len(inp1)]}{row_ref}:{alphabet[len(headers2+inp1)-1]}{row_ref}')
             total = '=SUM('
 
-            synth_row = diff + 2
+            synth_row = diff + 2 if diff > 0 else worksheet.max_row + 2
 
             synth_headers = {'Synthese': None,
                              'Designation': 'Quantite'}
             tot = {}
-            i = 0
+            s = 0
             for equip, cons in all_data[mon]['engin_cons'].items():
                 tot.setdefault(equip, list(cons)[0].value)
-                total += f'J{synth_row + i + 3}:'
-                i += 1
+                total += f'J{synth_row + s + 3}:'
+                s += 1
             total = total[:len(total)-1] + ')'
             cons_total = f'{total} + {str(sub_total[mon].value)[1:]}' \
                 if sub_total[mon].value != 0 else f'{total}'
@@ -310,17 +338,32 @@ def monthly_rapport(ws):
                           }
 
             synthese = synth_headers | tot | synth_rest
-            logging.debug(prev_solde[mon])
-            i = 0
+            e = 0
             solde = None
             for designation, synth_value in synthese.items():
-                designation_cell = worksheet[f'I{synth_row + 1 + i}']
-                value_cell = worksheet[f'J{synth_row + 1 + i}']
-                designation_cell.value = designation
+                designation_cell = worksheet[f'I{synth_row + 1 + e}']
+                value_cell = worksheet[f'J{synth_row + 1 + e}']
+                designation_cell.value = designation.capitalize()
                 value_cell.value = synth_value
                 if designation == 'Solde':
                     solde = value_cell
-                i += 1
+                color = colors[0] if e % 2 == 0 else colors[1]
+                fg_color = '00333333'
+                if e == 0:
+                    worksheet.merge_cells(f'I{synth_row + 1}:J{synth_row+1}')
+                    color = '000000FF'
+                    fg_color = '00FFFFFF'
+                    designation_cell.value = designation.upper()
+                logging.debug(fg_color)
+                font = Font(color='00444444', bold=True, size=11, name='Verdana')
+                fill = PatternFill(fill_type='solid', start_color=color, end_color=fg_color)
+                value_cell.font = Font(name='Verdana', size=12, bold=True)
+                value_cell.fill = fill
+                designation_cell.font = font
+                designation_cell.fill = fill
+                designation_cell.border = border_thin
+                value_cell.border = border_thin
+                e += 1
 
             try:
                 solde_grid = f'{solde.column_letter}{solde.row}'
@@ -328,10 +371,15 @@ def monthly_rapport(ws):
             except KeyError:
                 pass
 
-            for _row in worksheet.iter_rows():
+        for month_str in months:
+            worksheet = wb2[month_str]
+            for _row in worksheet.iter_rows(min_col=8):
+                worksheet.row_dimensions[_row[0].row].height = 25
                 for _cell in _row:
-                    # _cell.font = Font(name='Verdana', size=11, color=Color(indexed=63))
-                    _cell.alignment = Alignment(wrap_text=True, vertical='center', horizontal='center')
+                    _cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            for column in worksheet.iter_cols(min_col=8):
+                column_letter = column[1].column_letter
+                worksheet.column_dimensions[column_letter].auto = True
 
             head1 = worksheet['A1']
             head1.font = Font(color='003366FF', name='Verdana',
@@ -345,9 +393,8 @@ def monthly_rapport(ws):
             worksheet.merge_cells(f'A1:{alphabet[len(inp1)-2]}1')
             worksheet.row_dimensions[1].height = 28
             worksheet.column_dimensions['G'].width = 3
-            logging.debug(worksheet.max_row)
-            for i in range(1, worksheet.max_row):
-                worksheet[f'G{i}'].fill = PatternFill(fill_type='solid', start_color=Color(indexed=44))
+            for e in range(1, worksheet.max_row):
+                worksheet[f'G{e}'].fill = PatternFill(fill_type='solid', start_color=Color(indexed=44))
 
     for row in ws.iter_rows(min_row=4):
         for x in range(len(inp1)):
@@ -395,12 +442,16 @@ def monthly_rapport(ws):
             sub_total_cell = sub_total[data['a'][inp1[0]].month]
             col_l = sub_total_cell.column_letter
             sub_total_cell.value = f'=SUM({col_l}{min_row}:{col_l}{max_row})'
+            sub_total_cell.font = Font(name='Verdana', color=Color(indexed=63), bold=True, size=12)
+            sub_total_cell.alignment = Alignment(horizontal='center', vertical='center', shrink_to_fit=True)
+            sub_total_cell.border = border_thin
+            ws_active.row_dimensions[sub_total_cell.row].height = 26
         except AttributeError:
             pass
 
     for month in months:
         sheet = wb2[month]
-        for col in sheet.iter_cols():
+        for col in sheet.iter_cols(min_row=3):
             try:
                 col_letter = col[0].column_letter
                 add = 0
@@ -417,7 +468,7 @@ def monthly_rapport(ws):
             except IndexError:
                 continue
 
-            for r in sheet.iter_rows(min_row=3):
+            for r in sheet.iter_rows(min_row=3, max_row=sheet.max_row - 1):
                 row_number = r[0].row
                 sheet.row_dimensions[row_number].height = 25
                 for cell in r:
@@ -441,24 +492,19 @@ def monthly_rapport(ws):
             for i in range(len(headers1)):
                 cell = sheet[f'{alphabet[i]}2']
                 cell.value = cell.value.upper()
-                cell.font = Font(name='Verdana', bold=True, color='00111111', size=11)
-                cell.border = Border(top=Side(border_style='thin', color='00333333'),
-                                     right=Side(border_style='thin', color='00333333'),
-                                     bottom=Side(border_style='thin', color='00333333'),
-                                     left=Side(border_style='thin', color='00333333'))
+                cell.font = Font(name='Verdana', bold=True, color='00333333', size=11)
+                cell.border = border_thin
                 cell.alignment = Alignment(horizontal='center', vertical='center',
                                            wrap_text=True)
 
                 try:
-                    if cell.value == headers1[3]:
-                        sheet.column_dimensions[f'{alphabet[i]}'].width = len(cell.value)
+                    if cell.value == headers1[3].upper():
+                        sheet.column_dimensions[f'{alphabet[i]}'].width = len(cell.value) + 3
                 except TypeError:
                     pass
-
             sheet.row_dimensions[2].height = 26
         # Format the xlsx for better ui
-        # Move cells : Identify cells to be moved
-        # Move cells with their formulae
+
         # Make it printable
         # Auto-correct orthographic fault
         # Convert it in a pdf file for non-change
@@ -470,4 +516,4 @@ def monthly_rapport(ws):
     subprocess.Popen(['open', 'rapport.xlsx'])
 
 
-monthly_rapport(gasoil_ws)
+root.mainloop()
