@@ -4,11 +4,13 @@ from openpyxl import load_workbook
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, \
     PatternFill, Border, Side, Color
+from openpyxl.formula.translate import TranslatorError
 
 from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
 
+import time
 import os
 import logging
 import datetime
@@ -16,48 +18,25 @@ import argparse
 import subprocess
 import shelve
 
+
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - %(message)s')
-# logging.disable()
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--product', default='GASOIL',
-                    help='Indiquer le type du product')
 parser.add_argument('-a', '--adjust', default=0, help='Previous solde')
 args = vars(parser.parse_args())
 root = Tk()
-root.title('AutoXL')
-main_frame = ttk.Frame(root, padding='12 12 12 12')
-main_frame.grid(column=0, row=0, sticky='NSEW')
-
-filepath = filedialog.askopenfilename()
-
-# filepath = shelve
-
-
-os.chdir(os.path.dirname(filepath))
-os.chdir(os.path.dirname(filepath))
-wb = load_workbook(filepath)
-
-gasoil_ws = wb['GASOIL']
-essence_ws = wb['ESSENCE']
-wb1 = Workbook()
-wb2 = Workbook()
-m = 1
-n = 3
-colors = ['00BAC8ff', '00ffffff']
-border_thin = Border(top=Side(border_style='thin', color='00333333'),
-                     left=Side(border_style='thin', color='00333333'),
-                     right=Side(border_style='thin', color='00333333'),
-                     bottom=Side(border_style='thin', color='00333333'),)
+img = PhotoImage(file='home.png')
+img = img.subsample(2, 2)
 
 
 def fiche_stock(ws):
+    wb1 = Workbook()
     global m
     data = {}
     m = 3
     fiche_ws = wb1[wb1.sheetnames[0]]
     fiche_ws.title = 'Fiche'
-    fiche_ws['A1'] = 'FICHE DE SUIVI DU ' + args['product'].upper()
+    fiche_ws['A1'] = 'FICHE DE SUIVI DU ' + product_var.get().upper()
     fiche_ws.merge_cells('A1:H1')
     a = fiche_ws['A1']
 
@@ -169,12 +148,15 @@ def fiche_stock(ws):
                       top=Side(border_style='medium'),
                       bottom=Side(border_style='medium'))
     fiche_ws.row_dimensions[1].height = 30
+    loading_label.configure(text='')
     wb1.save('fiche.xlsx')
-    subprocess.Popen(['open', 'fiche.xlsx'])
+
+    return 'fiche.xlsx'
 
 
 def monthly_rapport(ws):
     global n
+    wb2 = Workbook()
     months = ['janvier',
               'fevrier',
               'mars',
@@ -301,31 +283,40 @@ def monthly_rapport(ws):
                             sum_cell.value = f'=SUM({cell_col}{sum_min_row}:{cell_col}{sum_max_row - 1})'
                 except AttributeError:
                     pass
-        logging.debug(all_data[1]['row_ref'])
-        for mon in all_data:
+
+        for mon in sheets:
             worksheet = wb2[sheets[mon]]
             move_row = worksheet.max_row
-            logging.debug(all_data[mon].get('first_row', None))
-            diff = move_row - all_data[mon].get('first_row', 0)
-            worksheet.move_range(f"A{all_data[mon]['first_row']}:{alphabet[len(inp2)]}{move_row}",
-                                 rows=-(all_data[mon].get('first_row', 1) - 1),
-                                 cols=len(inp1), translate=True)
-            for row_r in all_data[mon]['row_ref']:
-                row_ref = row_r - all_data[mon].get('first_row', 0) + 1
-                worksheet.merge_cells(f'{alphabet[len(inp1)]}{row_ref}:{alphabet[len(headers2+inp1)-1]}{row_ref}')
+            try:
+                logging.debug(f"A{all_data[mon]['first_row']}:{alphabet[len(inp2)]}{move_row}")
+                worksheet.move_range(f"A{all_data[mon]['first_row']}:{alphabet[len(inp2)]}{move_row}",
+                                     rows=-(all_data[mon].get('first_row', 1)) + 1,
+                                     cols=len(inp1), translate=True)
+
+                diff = move_row - all_data[mon].get('first_row', 0)
+                for row_r in all_data[mon]['row_ref']:
+                    row_ref = row_r - all_data[mon].get('first_row', 0) + 1
+                    worksheet.merge_cells(f'{alphabet[len(inp1)]}{row_ref}:{alphabet[len(headers2+inp1)-1]}{row_ref}')
+            except KeyError:
+                diff = move_row
+                pass
             total = '=SUM('
 
             synth_row = diff + 2 if diff > 0 else worksheet.max_row + 2
 
             synth_headers = {'Synthese': None,
                              'Designation': 'Quantite'}
-            tot = {}
+
             s = 0
-            for equip, cons in all_data[mon]['engin_cons'].items():
-                tot.setdefault(equip, list(cons)[0].value)
-                total += f'J{synth_row + s + 3}:'
-                s += 1
-            total = total[:len(total)-1] + ')'
+            tot = {}
+            try:
+                for equip, cons in all_data[mon]['engin_cons'].items():
+                    tot.setdefault(equip, list(cons)[0].value)
+                    total += f'J{synth_row + s + 3}:'
+                    s += 1
+                total = total[:len(total)-1] + ')'
+            except KeyError:
+                pass
             cons_total = f'{total} + {str(sub_total[mon].value)[1:]}' \
                 if sub_total[mon].value != 0 else f'{total}'
             other_conso = sub_total[mon].value[1:] if sub_total[mon].value != 0 else '0'
@@ -354,7 +345,6 @@ def monthly_rapport(ws):
                     color = '000000FF'
                     fg_color = '00FFFFFF'
                     designation_cell.value = designation.upper()
-                logging.debug(fg_color)
                 font = Font(color='00444444', bold=True, size=11, name='Verdana')
                 fill = PatternFill(fill_type='solid', start_color=color, end_color=fg_color)
                 value_cell.font = Font(name='Verdana', size=12, bold=True)
@@ -374,7 +364,10 @@ def monthly_rapport(ws):
         for month_str in months:
             worksheet = wb2[month_str]
             for _row in worksheet.iter_rows(min_col=8):
-                worksheet.row_dimensions[_row[0].row].height = 25
+                try:
+                    worksheet.row_dimensions[_row[0].row].height = 25
+                except IndexError:
+                    pass
                 for _cell in _row:
                     _cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             for column in worksheet.iter_cols(min_col=8):
@@ -513,7 +506,108 @@ def monthly_rapport(ws):
     write_cons_data(big_cons)
 
     wb2.save('rapport.xlsx')
-    subprocess.Popen(['open', 'rapport.xlsx'])
 
+    return 'rapport.xlsx'
+
+
+root.title('AutoXL')
+root.configure(background='#eee')
+main_frame = ttk.Frame(root, width=900, padding='50 50 50 50')
+ttk.Label(main_frame, width=900, image=img).grid(column=1, columnspan=3, row=0, sticky='WE')
+style = ttk.Style()
+style.configure('TFrame', background='#eee')
+style.configure('TLabel', foreground='#333')
+main_frame.pack(side=TOP)
+
+filepath_name = StringVar()
+shelf = shelve.open('shelf')
+
+path_entry = ttk.Entry(main_frame, textvariable=filepath_name)
+path_entry.grid(column=1, columnspan=2, row=1, sticky='EW')
+try:
+    filepath_name.set(str(shelf['path']))
+except KeyError:
+    pass
+
+
+def change_filepath():
+    global filepath_name
+    global shelf
+    path = filedialog.askopenfilename()
+    filepath_name.set(path)
+    shelf['path'] = path
+
+
+change_path_btn = ttk.Button(main_frame, text='Changer le fichier',
+                             command=change_filepath, style='TButton')
+change_path_btn.grid(column=3, row=1, sticky='W')
+product_var = StringVar()
+
+ttk.Label(main_frame, text="Selection du produit").grid(column=1, row=2, sticky='W')
+select_combo = ttk.Combobox(main_frame, textvariable=product_var, values=('Gasoil', 'Essence'))
+select_combo.grid(column=2, row=2, sticky='W')
+loading_label = ttk.Label(main_frame, text='')
+loading_label.grid(column=2, row=6)
+
+style.configure('TEntry', padx='24', font='Arial')
+style.configure('TLabel', background='#eee', padding='16 8', font='Arial')
+style.configure('TCheckbutton', background='#eee', foreground='#222',
+                font='Arial', padding='16 8')
+style.configure('TCombobox', font='Arial')
+style.configure('TButton', font='Arial', background='green', foreground='white')
+
+done_label = ttk.Label(main_frame, text='')
+done_label.grid(column=1, columnspan=2, row=7, sticky='EW')
+done_label1 = ttk.Label(main_frame, text='')
+done_label1.grid(column=1, columnspan=2, row=8, sticky='EW')
+
+
+def init_program():
+    global product_var
+    done_label.configure(text='')
+    done_label1.configure(text='')
+    filepath = filepath_name.get()
+    if not filepath:
+        loading_label.configure(text='Fichier de rapport non selectionne')
+    elif not filepath.strip().endswith('xlsx'):
+        loading_label.configure(text='Le fichier selectionne n\'est pas un fichier excel')
+    else:
+        logging.debug(type(fiche_var.get()))
+        logging.debug(type(rapport_var.get()))
+        os.chdir(os.path.dirname(filepath.strip()))
+        wb = load_workbook(filepath.strip())
+        product = product_var.get()
+        if product:
+            ws = wb[product.upper()]
+            if fiche_var.get() == '1':
+                processed = fiche_stock(ws)
+                done_label.configure(text='La fiche de stock a ete traite avec succes\n')
+                time.sleep(2)
+                subprocess.Popen(['open', processed])
+
+            if rapport_var.get() == '1':
+                processed = monthly_rapport(ws)
+                done_label1.configure(text='Le rapport mensuel a ete traite avec succes\n')
+                time.sleep(2)
+                subprocess.Popen(['open', processed])
+
+
+fiche_var = StringVar()
+rapport_var = StringVar()
+fiche_chk_btn = ttk.Checkbutton(main_frame, text='FICHE DE CARBURANT', variable=fiche_var,)
+fiche_chk_btn.grid(column=2, row=3, sticky='W')
+rapport_chk_btn = ttk.Checkbutton(main_frame, text='RAPPORT MENSUEL', variable=rapport_var,)
+rapport_chk_btn.grid(column=2, row=4, sticky='W')
+proceed_btn = ttk.Button(main_frame, text='LANCER', command=init_program)
+proceed_btn.grid(column=3, row=5, sticky='E')
+
+m = 1
+n = 3
+colors = ['00BAC8ff', '00ffffff']
+border_thin = Border(top=Side(border_style='thin', color='00333333'),
+                     left=Side(border_style='thin', color='00333333'),
+                     right=Side(border_style='thin', color='00333333'),
+                     bottom=Side(border_style='thin', color='00333333'),)
 
 root.mainloop()
+shelf.close()
