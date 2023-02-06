@@ -4,7 +4,7 @@ from openpyxl import load_workbook
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, \
     PatternFill, Border, Side, Color
-from openpyxl.formula.translate import TranslatorError
+
 
 from tkinter import *
 from tkinter import ttk
@@ -20,6 +20,7 @@ import shelve
 
 
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s - %(message)s')
+logging.disable()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-a', '--adjust', default=0, help='Previous solde')
@@ -148,7 +149,6 @@ def fiche_stock(ws):
                       top=Side(border_style='medium'),
                       bottom=Side(border_style='medium'))
     fiche_ws.row_dimensions[1].height = 30
-    loading_label.configure(text='')
     wb1.save('fiche.xlsx')
 
     return 'fiche.xlsx'
@@ -288,7 +288,6 @@ def monthly_rapport(ws):
             worksheet = wb2[sheets[mon]]
             move_row = worksheet.max_row
             try:
-                logging.debug(f"A{all_data[mon]['first_row']}:{alphabet[len(inp2)]}{move_row}")
                 worksheet.move_range(f"A{all_data[mon]['first_row']}:{alphabet[len(inp2)]}{move_row}",
                                      rows=-(all_data[mon].get('first_row', 1)) + 1,
                                      cols=len(inp1), translate=True)
@@ -316,6 +315,7 @@ def monthly_rapport(ws):
                     s += 1
                 total = total[:len(total)-1] + ')'
             except KeyError:
+                total = '=0'
                 pass
             cons_total = f'{total} + {str(sub_total[mon].value)[1:]}' \
                 if sub_total[mon].value != 0 else f'{total}'
@@ -511,12 +511,14 @@ def monthly_rapport(ws):
 
 
 root.title('AutoXL')
-root.configure(background='#eee')
-main_frame = ttk.Frame(root, width=900, padding='50 50 50 50')
-ttk.Label(main_frame, width=900, image=img).grid(column=1, columnspan=3, row=0, sticky='WE')
 style = ttk.Style()
-style.configure('TFrame', background='#eee')
-style.configure('TLabel', foreground='#333')
+style.configure('TFrame', background='#f5f5f5')
+style.configure('TLabel', foreground='#12aef7')
+
+root.configure(background='#f5f5f5')
+main_frame = ttk.Frame(root, width=900, padding='50 50 50 50')
+ttk.Label(main_frame, text='Powered by Chrisbal', image=img, compound='top').grid(column=1,
+                                                                                     columnspan=3, row=0, sticky='WE')
 main_frame.pack(side=TOP)
 
 filepath_name = StringVar()
@@ -546,12 +548,10 @@ product_var = StringVar()
 ttk.Label(main_frame, text="Selection du produit").grid(column=1, row=2, sticky='W')
 select_combo = ttk.Combobox(main_frame, textvariable=product_var, values=('Gasoil', 'Essence'))
 select_combo.grid(column=2, row=2, sticky='W')
-loading_label = ttk.Label(main_frame, text='')
-loading_label.grid(column=2, row=6)
 
 style.configure('TEntry', padx='24', font='Arial')
-style.configure('TLabel', background='#eee', padding='16 8', font='Arial')
-style.configure('TCheckbutton', background='#eee', foreground='#222',
+style.configure('TLabel', background='#f5f5f5', padding='4', font='Arial')
+style.configure('TCheckbutton', background='#f5f5f5', foreground='#222',
                 font='Arial', padding='16 8')
 style.configure('TCombobox', font='Arial')
 style.configure('TButton', font='Arial', background='green', foreground='white')
@@ -568,12 +568,10 @@ def init_program():
     done_label1.configure(text='')
     filepath = filepath_name.get()
     if not filepath:
-        loading_label.configure(text='Fichier de rapport non selectionne')
+        done_label.configure(text='Fichier de rapport non selectionne')
     elif not filepath.strip().endswith('xlsx'):
-        loading_label.configure(text='Le fichier selectionne n\'est pas un fichier excel')
+        done_label.configure(text='Le fichier selectionne n\'est pas un fichier excel')
     else:
-        logging.debug(type(fiche_var.get()))
-        logging.debug(type(rapport_var.get()))
         os.chdir(os.path.dirname(filepath.strip()))
         wb = load_workbook(filepath.strip())
         product = product_var.get()
